@@ -1,0 +1,23 @@
+spring:
+  # Stand-ins for the required DB_URL/DB_USERNAME/DB_PASSWORD; Testcontainers (@ServiceConnection) supplies the
+  # real PostgreSQL and MongoDB connections.
+  datasource:
+    url: jdbc:postgresql://replaced-by-testcontainers/test
+    username: test
+    password: test
+app:
+  security:
+    bcrypt-strength: 4
+    jwt:
+      secret: test-secret-for-integration-tests-only-0123456789
+      access-token-ttl: P60D
+  risk:
+    scheduling-enabled: false
+    on-change-enabled: false
+    manual-cooldown: PT10S
+  ai:
+    provider: none
+logging:
+  level:
+    com.foresight: INFO
+    org.testcontainers: WARN

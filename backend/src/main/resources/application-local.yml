@@ -1,0 +1,9 @@
+# Local development convenience profile (SPRING_PROFILES_ACTIVE=local).
+# Never use in production: allows an ephemeral random JWT secret when APP_JWT_SECRET is unset.
+app:
+  security:
+    jwt:
+      allow-ephemeral-secret: true
+logging:
+  level:
+    com.foresight: DEBUG

@@ -1,0 +1,136 @@
+spring:
+  application:
+    name: foresight
+
+  # Load environment variables from an optional .env file
+  config:
+    import: optional:file:.env[.properties]
+
+  # MongoDB configuration
+  mongodb:
+    uri: ${SPRING_MONGODB_URI:mongodb://localhost:27017/foresight?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000}
+    representation:
+      uuid: standard
+
+  data:
+    mongodb:
+      auto-index-creation: true
+      representation:
+        big-decimal: decimal128
+
+  # Neon PostgreSQL configuration
+  datasource:
+    url: ${APP_DB_URL:${DB_URL}}
+    username: ${APP_DB_USERNAME:${DB_USERNAME}}
+    password: ${APP_DB_PASSWORD:${DB_PASSWORD}}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  # JPA configuration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  # Database migrations
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+  mvc:
+    problemdetails:
+      enabled: false
+
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Foresight
+    description: Proactive project risk management backend
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    root: INFO
+    com.foresight: ${LOG_LEVEL_APP:INFO}
+  pattern:
+    level: "%5p [%X{requestId:-}]"
+
+app:
+  time-zone: ${APP_TIME_ZONE:UTC}
+
+  cors:
+    # Configure production origins through APP_CORS_ALLOWED_ORIGINS
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
+
+  security:
+    bcrypt-strength: ${APP_SECURITY_BCRYPT_STRENGTH:12}
+    jwt:
+      secret: ${APP_JWT_SECRET:}
+      issuer: ${APP_JWT_ISSUER:foresight}
+      access-token-ttl: ${APP_JWT_ACCESS_TTL:PT15M}
+      refresh-token-ttl: ${APP_JWT_REFRESH_TTL:P14D}
+      allow-ephemeral-secret: false
+
+  risk:
+    scheduling-enabled: ${APP_RISK_SCHEDULING_ENABLED:true}
+    analysis-interval: ${APP_RISK_ANALYSIS_INTERVAL:PT15M}
+    analysis-initial-delay: ${APP_RISK_ANALYSIS_INITIAL_DELAY:PT1M}
+    on-change-enabled: ${APP_RISK_ON_CHANGE_ENABLED:true}
+    on-change-debounce: ${APP_RISK_ON_CHANGE_DEBOUNCE:PT5S}
+    manual-cooldown: ${APP_RISK_MANUAL_COOLDOWN:PT10S}
+    delivery-sweep-interval: ${APP_RISK_DELIVERY_SWEEP_INTERVAL:PT1M}
+    delivery-lease: PT5M
+    delivery-max-attempts: 5
+    notify-min-severity: ${APP_RISK_NOTIFY_MIN_SEVERITY:MEDIUM}
+    min-score: 20
+    hours-per-day: 6
+    exclude-weekends: true
+    approaching-days: 3
+    urgent-stall-days: 2
+    stall-days: 5
+    workload-horizon-days: 10
+    workload-overload-ratio: 1.2
+    workload-task-count-threshold: 6
+
+  ai:
+    provider: ${APP_AI_PROVIDER:none}
+    model: ${APP_AI_MODEL:claude-opus-5-5}
+    api-key: ${ANTHROPIC_API_KEY:}
+    timeout: ${APP_AI_TIMEOUT:PT30S}
+    max-retries: ${APP_AI_MAX_RETRIES:2}
+    max-tokens: ${APP_AI_MAX_TOKENS:4000}
+    effort: ${APP_AI_EFFORT:medium}
