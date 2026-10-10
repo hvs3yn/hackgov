@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -86,6 +87,15 @@ public class ApiExceptionHandler {
     ResponseEntity<ProblemDetail> handleOptimisticLock(ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
         return respond(HttpStatus.CONFLICT, "VERSION_CONFLICT",
                 "The resource was modified concurrently; reload and retry", request, null);
+    }
+
+    /** Serialization failures (SQLSTATE 40001), deadlocks (40P01) and lock timeouts: transient, safe to retry. */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handlePessimisticLock(PessimisticLockingFailureException ex, HttpServletRequest request) {
+        log.info("Concurrent update on {} {}: {}", request.getMethod(), request.getRequestURI(),
+                ex.getClass().getSimpleName());
+        return respond(HttpStatus.CONFLICT, "CONCURRENT_UPDATE",
+                "The resource is being updated concurrently; retry the request", request, null);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

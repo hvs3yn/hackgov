@@ -3,7 +3,7 @@
 | Command | Runs | Needs |
 |---|---|---|
 | `./mvnw test` | unit tests (`*Test`, Surefire) | JDK 25 |
-| `./mvnw verify` | unit + integration tests (`*IT`, Failsafe) + packaging | JDK 25, Docker (Testcontainers PostgreSQL 18 + MongoDB 8) |
+| `./mvnw verify` | unit + integration tests (`*IT`, Failsafe) + packaging | JDK 25, Docker (Testcontainers PostgreSQL 18) |
 
 No test calls a paid API: the AI provider is mocked or disabled, and the deterministic generator is used.
 
@@ -27,7 +27,7 @@ No test calls a paid API: the AI provider is mocked or disabled, and the determi
 
 ## 2. Integration tests (Spring Boot + Testcontainers)
 
-Shared PostgreSQL 18 and MongoDB 8 containers; each test starts from truncated tables and an empty `ai_generations` collection; a `MutableClock` controls "now"; scheduling and on-change async processing are disabled (`application-test.yml`) so analysis and delivery are invoked deterministically.
+Shared PostgreSQL 18 container; each test starts from truncated tables (including `ai_generations` collection; a `MutableClock` controls "now"; scheduling and on-change async processing are disabled (`application-test.yml`) so analysis and delivery are invoked deterministically.
 
 | Class | Verifies |
 |---|---|
@@ -38,7 +38,7 @@ Shared PostgreSQL 18 and MongoDB 8 containers; each test starts from truncated t
 | `task.TaskApiIT` | create/list with every filter, sort and pagination; lifecycle with activity history; optimistic locking; contributor permission rules; archive; dependency validation (duplicate, self, cycle, cross-project) and dependency gating of status changes |
 | `risk.RiskLifecycleIT` | Ulvi scenario through the API: detection, explanation, delivery to assignee + lead + dependent owner; repeated analysis creates no duplicates; resolution → inbox shows RESOLVED; reappearance → REOPENED and item resurfaces; overdue vs completed tasks; escalation resurfaces dismissed item; cooldown 429 |
 | `inbox.InboxApiIT` | filters, pagination, read/unread/acknowledge/dismiss, other users' items 404, LOW severity not pushed, removed members lose items |
-| `recommendation.AiFallbackIT` | valid provider output used (facts still grounded, priorities normalized); provider exception / invalid output / crash → FALLBACK; generation log in MongoDB visible only to project members |
+| `recommendation.AiFallbackIT` | valid provider output used (facts still grounded, priorities normalized); provider exception / invalid output / crash → FALLBACK; generation log visible only to project members |
 | `ConcurrencyIT` | opposite dependencies concurrently → exactly one succeeds; concurrent updates with one version → one 200, rest 409; 6 concurrent analyses + 6 concurrent delivery sweeps → no duplicate assessments, events or inbox items; concurrent duplicate registrations → one user |
 
 ## 3. Manual end-to-end check

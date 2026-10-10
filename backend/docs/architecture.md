@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Foresight is a **modular monolith**: one Spring Boot 4.1 application (Java 25), packages organised by business capability. **PostgreSQL is the system of record** (all business data; locking, uniqueness and durable job state). **MongoDB** (added at the product owner's request) stores only the non-authoritative *AI generation log*. No message broker, cache or service mesh.
+Foresight is a **modular monolith**: one Spring Boot 4.1 application (Java 25), packages organised by business capability. **PostgreSQL is the system of record** (all business data; locking, uniqueness and durable job state). It also stores the non-authoritative *AI generation log* (table `ai_generations`). No message broker, cache or service mesh.
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,7 @@ flowchart LR
         SVC --> AI[AiProvider]
     end
     REPO --> PG[(PostgreSQL 18 + Flyway)]
-    AI --> MONGO[(MongoDB 8: AI generation log)]
+    AI --> PG
     AI -. optional .-> CLAUDE[Anthropic Claude API]
     AI --> FALLBACK[Deterministic explanation generator]
 ```
@@ -33,7 +33,7 @@ Root package `com.foresight`.
 | `project` | Projects, project memberships, **effective-permission resolution**, project data versioning, project events | `Project`, `ProjectMembership`, `ProjectService`, `ProjectAccessService`, `ProjectDataChangedEvent` |
 | `task` | Tasks, lifecycle, dependencies (cycle-safe), activity history, read model for analysis | `Task`, `TaskStatus`, `TaskDependency`, `TaskActivity`, `TaskService`, `DependencyService`, `TaskQueryApi` |
 | `risk` | Pure engine (`risk.engine`: snapshot, rules, scoring, graph), assessment persistence & lifecycle reconciliation, scheduling/triggers, risk API | `RiskEngine`, `RiskRule`, `ScoringPolicy`, `RiskAssessment`, `RiskAnalysisService`, `RiskReconciler` |
-| `recommendation` | `AiProvider` abstraction, Anthropic provider, deterministic generator, output validation, explanation service, AI generation log (MongoDB) | `AiProvider`, `AnthropicAiProvider`, `DeterministicExplanationGenerator`, `ExplanationService`, `AiGenerationLog` |
+| `recommendation` | `AiProvider` abstraction, Anthropic provider, deterministic generator, output validation, explanation service, AI generation log (`ai_generations` table) | `AiProvider`, `AnthropicAiProvider`, `DeterministicExplanationGenerator`, `ExplanationService`, `AiGenerationLog` |
 | `inbox` | Recipient resolution, delivery pipeline (claim → explain → upsert), inbox queries and state changes | `InboxItem`, `RiskAlertDeliveryService`, `InboxService` |
 
 Each module is split into sub-packages:
@@ -103,7 +103,7 @@ erDiagram
 | Workspace membership change | Lock workspace row (`SELECT … FOR UPDATE`) → check last-owner invariant → mutate. |
 | Risk analysis | (1) read-only `REPEATABLE READ` transaction builds an immutable snapshot incl. `data_version`; (2) engine runs outside any transaction; (3) reconciliation transaction locks the project row, aborts if `data_version` changed (retry ≤ 3), then upserts assessments/events. |
 | Alert delivery | (1) short transaction claims the assessment (`PENDING → IN_PROGRESS`, lease); (2) AI call **outside** any transaction; (3) short transaction locks the assessment, verifies revision unchanged, stores explanation, upserts inbox items, marks `DELIVERED`. |
-| AI generation log | Separate, asynchronous, best-effort MongoDB insert (no shared transaction with PostgreSQL); a failure only loses the log entry. |
+| AI generation log | Separate, asynchronous, best-effort insert into `ai_generations` in its own transaction; a failure only loses the log entry. |
 
 ## 6. Authentication & authorization
 
@@ -129,13 +129,13 @@ Correctness never depends on in-memory state: the coalescing map is only an opti
 - `DeterministicExplanationGenerator` – default and fallback; template-based, uses only evidence.
 - `AnthropicAiProvider` – enabled with `APP_AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`; uses the official `anthropic-java` SDK with typed structured output (`outputConfig(Class)`), model `claude-opus-5-5` by default, request timeout and bounded retries.
 
-Output is validated (`ExplanationValidator`) and treated as untrusted text; on any failure (timeout, 4xx/5xx, rate limit, refusal, invalid JSON/schema) the deterministic generator is used and the source is recorded as `FALLBACK`. Every generation (provider, model, outcome, fallback reason, latency – never prompts or output text) is appended to the MongoDB collection `ai_generations` (90-day TTL) and exposed read-only at `GET /api/v1/risks/{id}/ai-generations`.
+Output is validated (`ExplanationValidator`) and treated as untrusted text; on any failure (timeout, 4xx/5xx, rate limit, refusal, invalid JSON/schema) the deterministic generator is used and the source is recorded as `FALLBACK`. Every generation (provider, model, outcome, fallback reason, latency – never prompts or output text) is appended to the PostgreSQL table `ai_generations` (purged after 90 days) and exposed read-only at `GET /api/v1/risks/{id}/ai-generations`.
 
 ## 9. Error handling & observability
 
 - Single `@RestControllerAdvice` produces `application/problem+json` with `code`, `title`, `status`, `detail`, `instance`, `timestamp`, optional `errors[]`. Unknown exceptions → 500 with a generic message (details only in logs, tagged with request ID).
 - `RequestIdFilter` reads/creates `X-Request-Id`, puts it in MDC and the response.
-- Actuator: `/actuator/health` (public; includes PostgreSQL and MongoDB), `/actuator/info`; Micrometer counters `foresight.risk.analyses`, `foresight.inbox.deliveries`, `foresight.inbox.delivery.failures`, `foresight.ai.explanations`, `foresight.ai.fallbacks`, `foresight.ai.generation_log.failures`.
+- Actuator: `/actuator/health` (public; includes PostgreSQL), `/actuator/info`; Micrometer counters `foresight.risk.analyses`, `foresight.inbox.deliveries`, `foresight.inbox.delivery.failures`, `foresight.ai.explanations`, `foresight.ai.fallbacks`, `foresight.ai.generation_log.failures`.
 - Secrets, passwords and tokens are never logged.
 
 ## 10. Key decisions & trade-offs
@@ -150,4 +150,4 @@ Output is validated (`ExplanationValidator`) and treated as untrusted text; on a
 | Deterministic engine, LLM only for wording/recommendations | Testable, explainable; LLM cannot invent facts because facts are rendered from evidence. |
 | Polling + after-commit triggers instead of a queue | No extra infrastructure; at-least-once delivery with idempotent writes. |
 | Effective role: workspace ADMIN/OWNER ⇒ project LEAD | Avoids duplicating membership rows for admins. |
-| MongoDB only for the AI generation log | Requested by the product owner. PostgreSQL stays the single source of truth for transactional data (no cross-store consistency problems); append-only telemetry with TTL expiry fits a document store. Cost: one more service to run, and `/actuator/health` reports DOWN when MongoDB is unreachable even though business operations continue. |
+| AI generation log in PostgreSQL | Originally MongoDB; moved to PostgreSQL (2026-10-10) so there is one database, one set of credentials and no extra service. Retention is a daily purge instead of a TTL index. |

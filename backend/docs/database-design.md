@@ -132,27 +132,28 @@ UNIQUE (assessment_id, recipient_id) `uk_inbox_assessment_recipient`. Indexes (r
 ## Migration strategy
 
 - Versioned migrations `V{n}__description.sql`, never edited after release; one migration per logical change.
-- `V1__identity.sql`, `V2__workspaces_projects.sql`, `V3__tasks.sql`, `V4__risk.sql`, `V5__inbox.sql`.
-- Demo seed `db/demo/R__demo_seed.sql` is a *repeatable* migration, added to Flyway locations only with the `demo` profile. It is idempotent (`ON CONFLICT DO NOTHING` / `NOT EXISTS`) and never occupies a version number, so it cannot block future `V6…` migrations.
+- `V1__identity.sql`, `V2__workspaces_projects.sql`, `V3__tasks.sql`, `V4__risk.sql`, `V5__inbox.sql`, `V6__ai_generations.sql`.
+- Demo seed `db/demo/R__demo_seed.sql` is a *repeatable* migration, added to Flyway locations only with the `demo` profile. It is idempotent (`ON CONFLICT DO NOTHING` / `NOT EXISTS`) and never occupies a version number, so it cannot block future versioned migrations.
 - Flyway runs automatically on application startup (no separate Maven Flyway plugin); `FlywayMigrationIT` validates every migration against a fresh PostgreSQL container.
 
-## MongoDB: AI generation log
+## `ai_generations`: AI generation log (`V6__ai_generations.sql`)
 
-Database `foresight`, collection **`ai_generations`** (Spring Data MongoDB; indexes created at startup via `spring.data.mongodb.auto-index-creation`). Not a system of record: no foreign keys, no shared transactions with PostgreSQL, best-effort asynchronous writes.
+Telemetry, not a system of record: best-effort asynchronous inserts in their own transaction (a failed write only loses the entry). Prompts, model output text and credentials are never stored. Rows are deleted after 90 days by a daily job (`AiGenerationLog.purgeExpired`).
 
-| Field | Type | Notes |
+| Column | Type | Notes |
 |---|---|---|
-| `_id` | ObjectId | |
-| `assessmentId`, `projectId` | UUID (standard representation) | references to PostgreSQL rows (not enforced) |
-| `revision` | int | assessment revision explained |
-| `category`, `severity` | string | |
-| `configuredProvider`, `model` | string | `none`/`anthropic`; model only when the provider is enabled |
-| `source`, `outcome` | string | `ANTHROPIC`/`FALLBACK`; `PROVIDER`/`FALLBACK` |
-| `fallbackReason`, `errorMessage` | string | e.g. `provider_disabled`, `rate_limited`, `invalid_output` (message ≤ 300 chars) |
-| `latencyMs`, `recommendedActions` | long, int | |
-| `createdAt` | date | **TTL index** `ttl_created`: documents expire after 90 days |
+| `id` | uuid PK | |
+| `assessment_id` | uuid FK → `risk_assessments` ON DELETE CASCADE | |
+| `project_id` | uuid | |
+| `revision` | integer | assessment revision explained |
+| `category`, `severity` | varchar | |
+| `configured_provider`, `model` | varchar | `none`/`anthropic`; model only when the provider is enabled |
+| `source`, `outcome` | varchar | `ANTHROPIC`/`FALLBACK`; `PROVIDER`/`FALLBACK` (check constraint) |
+| `fallback_reason`, `error_message` | varchar | e.g. `provider_disabled`, `rate_limited`, `invalid_output` (message ≤ 300 chars) |
+| `latency_ms`, `recommended_actions` | bigint, integer | |
+| `created_at` | timestamptz | |
 
-Indexes: `assessment_created` (`assessmentId` asc, `createdAt` desc), `ttl_created`. Prompts, model output text and credentials are never stored.
+Indexes: `ix_ai_generations_assessment_created (assessment_id, created_at DESC)`, `ix_ai_generations_created (created_at)` for the retention purge.
 
 ## Important access patterns
 
@@ -165,4 +166,4 @@ Indexes: `assessment_created` (`assessmentId` asc, `createdAt` desc), `ttl_creat
 | Reconcile | `risk_assessments WHERE project_id=?` (all identities, active + resolved) |
 | Delivery sweeper | `risk_assessments (delivery_status, next_delivery_attempt_at)` |
 | Inbox listing | `inbox_items (recipient_id, last_delivered_at DESC)` + filters, paged |
-| Generation history of a risk | MongoDB `ai_generations` by `assessmentId`, newest first, paged |
+| Generation history of a risk | `ai_generations (assessment_id, created_at DESC)`, paged |

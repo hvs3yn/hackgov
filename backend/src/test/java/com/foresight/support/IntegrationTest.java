@@ -9,19 +9,16 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Clock;
 import java.time.Instant;
 
 /**
- * Base class for integration tests: full Spring context, MockMvc, real PostgreSQL and MongoDB (Testcontainers,
+ * Base class for integration tests: full Spring context, MockMvc, real PostgreSQL (Testcontainers,
  * shared by all test classes), a controllable clock and a clean database before each test.
  */
 @SpringBootTest
@@ -36,12 +33,8 @@ public abstract class IntegrationTest {
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18-alpine");
 
-    @ServiceConnection
-    static final MongoDBContainer MONGO = new MongoDBContainer("mongo:8");
-
     static {
         POSTGRES.start();
-        MONGO.start();
     }
 
     @Autowired
@@ -53,18 +46,14 @@ public abstract class IntegrationTest {
     @Autowired
     protected MutableClock clock;
 
-    @Autowired
-    protected MongoTemplate mongo;
-
     protected Api api;
 
     @BeforeEach
     void resetState() {
         jdbc.execute("""
-                TRUNCATE inbox_items, risk_assessment_events, risk_assessments, task_activities, task_dependencies,
+                TRUNCATE ai_generations, inbox_items, risk_assessment_events, risk_assessments, task_activities, task_dependencies,
                          tasks, project_memberships, projects, workspace_memberships, workspaces, refresh_tokens, users
                 CASCADE""");
-        mongo.remove(new Query(), "ai_generations");
         clock.set(START);
         api = new Api(mvc);
     }

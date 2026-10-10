@@ -8,7 +8,7 @@ The frontend (TypeScript) is a separate project; this repository is the REST API
 
 ## Stack
 
-Java 25 · Spring Boot 4.1 (Web MVC, Data JPA/Hibernate 7, Security + OAuth2 resource server/JWT, Validation, Actuator) · **PostgreSQL 18** (system of record) + Flyway · **MongoDB 8** (AI generation log only) · springdoc-openapi · Anthropic Java SDK (optional) · JUnit 5, Mockito, Testcontainers, ArchUnit · Docker Compose.
+Java 25 · Spring Boot 4.1 (Web MVC, Data JPA/Hibernate 7, Security + OAuth2 resource server/JWT, Validation, Actuator) · **PostgreSQL 18** (system of record) + Flyway (also stores the AI generation log) · springdoc-openapi · Anthropic Java SDK (optional) · JUnit 5, Mockito, Testcontainers, ArchUnit · Docker Compose.
 
 ## Architecture in one minute
 
@@ -33,7 +33,7 @@ Details: [`docs/architecture.md`](docs/architecture.md), [`docs/ai-risk-engine.m
 | [docs/requirements.md](docs/requirements.md) | Roles, functional/non-functional requirements, journeys, scope |
 | [docs/architecture.md](docs/architecture.md) | Modules, layering, transactions, background jobs, trade-offs |
 | [docs/domain-model.md](docs/domain-model.md) | Entities, invariants, lifecycles |
-| [docs/database-design.md](docs/database-design.md) | PostgreSQL schema, MongoDB collection, migrations |
+| [docs/database-design.md](docs/database-design.md) | PostgreSQL schema and migrations |
 | [docs/api-specification.md](docs/api-specification.md) | REST contract with examples |
 | [docs/ai-risk-engine.md](docs/ai-risk-engine.md) | Rules, scoring, lifecycle, AI provider and fallback |
 | [docs/security.md](docs/security.md) | AuthN/AuthZ, tokens, secrets, isolation |
@@ -52,7 +52,6 @@ All settings live in `src/main/resources/application.yml` and can be overridden 
 | Variable | Default | Purpose |
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | – (**required**) | your PostgreSQL, e.g. Neon: `jdbc:postgresql://<host>/<db>?sslmode=require` |
-| `SPRING_MONGODB_URI` | `mongodb://localhost:27017/foresight?...` | MongoDB (AI generation log) |
 | `APP_JWT_SECRET` | – (**required**, ≥ 32 bytes) | HS256 signing key; the `local` profile generates an ephemeral one |
 | `APP_JWT_ACCESS_TTL` / `APP_JWT_REFRESH_TTL` | `PT15M` / `P14D` | token lifetimes |
 | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:[*],http://127.0.0.1:[*]` | frontend origins or patterns (set explicit origins in production) |
@@ -70,7 +69,7 @@ Profiles: `local` (ephemeral JWT secret, debug logs), `demo` (adds sample data v
 
 ```bash
 cp .env.example .env            # set DB_URL, DB_USERNAME, DB_PASSWORD (your PostgreSQL) and APP_JWT_SECRET
-docker compose up -d mongo      # optional throwaway PostgreSQL: docker compose --profile local-db up -d postgres mongo
+# optional throwaway PostgreSQL: docker compose --profile local-db up -d postgres
 
 # run the app from the backend folder – values are read from .env (PowerShell: .\mvnw.cmd)
 SPRING_PROFILES_ACTIVE=demo ./mvnw spring-boot:run
@@ -107,7 +106,7 @@ Set `APP_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=...`. Explanations then c
 Latest results (2026-10-09):
 
 - `./mvnw clean verify` → **92 unit tests + 51 integration tests passed**, build success.
-- Packaged jar started against Docker Compose PostgreSQL 18 + MongoDB 8 with the `demo` profile and **no AI key**: all migrations applied, health `UP`, and a scripted run against the live API passed **23/23 checks**. Those covered scheduled analysis, inbox delivery, recommendations naming real teammates, the MongoDB generation log, dependency cycles and gating, cross-tenant isolation, cooldown, and change-triggered resolution of a completed task's risk.
+- Packaged jar started against Docker Compose PostgreSQL 18 with the `demo` profile and **no AI key**: all migrations applied, health `UP`, and a scripted run against the live API passed **23/23 checks**. Those covered scheduled analysis, inbox delivery, recommendations naming real teammates, the AI generation log, dependency cycles and gating, cross-tenant isolation, cooldown, and change-triggered resolution of a completed task's risk.
 - `docker build` succeeds; the container starts healthy as non-root user `foresight`.
 - Login re-verified live: normal, stale `Authorization` header, padded/upper-case e-mail, wrong password (uniform 401) and CORS preflights from `127.0.0.1:5173` and `localhost:4200`.
 
@@ -119,8 +118,8 @@ Latest results (2026-10-09):
 | Login returns 401 `INVALID_CREDENTIALS` | Wrong e-mail/password, or demo users don't exist (the `demo` profile seeds them only on a fresh database). The server log says which (`Login failed …`). |
 | Browser login blocked (CORS error) | Add your frontend origin to `APP_CORS_ALLOWED_ORIGINS`; local origins on any port are allowed by default. |
 | `Could not resolve placeholder 'DB_URL'` | Set `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` in `.env` (in the `backend` folder) or the environment. |
+| `could not serialize access due to concurrent update` / `deadlock detected` | Use Neon's **direct** endpoint, not the `-pooler` host (PgBouncer transaction pooling). The app already pools connections with HikariCP. |
 | `failed to read .env` (Docker Compose) | `.env` may contain only `KEY=value` lines – no quotes or Markdown ``` fences. |
-| `/actuator/health` is `DOWN` | MongoDB is unreachable; start `docker compose up -d mongo` (business endpoints keep working). |
 | Integration tests fail to start | Docker must be running (Testcontainers). |
 | No inbox items with the demo profile | Wait for the first scheduled analysis (≤ 1 min after start) or `POST /api/v1/projects/{id}/risk-analysis` as a lead. |
 | `409 VERSION_CONFLICT` | Reload the resource and resend with its current `version`. |

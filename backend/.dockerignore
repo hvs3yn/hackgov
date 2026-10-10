@@ -4,3 +4,7 @@ target/
 *.iml
 .env
 docs/
+.env.*
+*.md
+tasks.md
+.git

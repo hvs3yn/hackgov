@@ -1,6 +1,6 @@
 spring:
   # Stand-ins for the required DB_URL/DB_USERNAME/DB_PASSWORD; Testcontainers (@ServiceConnection) supplies the
-  # real PostgreSQL and MongoDB connections.
+  # real PostgreSQL connection.
   datasource:
     url: jdbc:postgresql://replaced-by-testcontainers/test
     username: test

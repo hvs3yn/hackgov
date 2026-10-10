@@ -35,8 +35,8 @@
 ## Secrets management
 
 - For local runs the app also imports an optional `.env` file from the working directory (`spring.config.import: optional:file:.env[.properties]`); real environment variables take precedence. `.env` is git-ignored and excluded from the Docker build context.
-- All secrets from environment variables: `APP_JWT_SECRET`, `DB_PASSWORD` (and `DB_URL`/`DB_USERNAME`), `SPRING_MONGODB_URI` (may contain credentials), `ANTHROPIC_API_KEY`. `.env.example` contains placeholders only; `.env` is git-ignored.
-- The MongoDB AI generation log stores metadata only (no prompts, model output text or keys) and is readable only by members of the risk's project.
+- All secrets from environment variables: `APP_JWT_SECRET`, `DB_PASSWORD` (and `DB_URL`/`DB_USERNAME`), `ANTHROPIC_API_KEY`. `.env.example` contains placeholders only; `.env` is git-ignored.
+- The AI generation log (`ai_generations`) stores metadata only (no prompts, model output text or keys) and is readable only by members of the risk's project.
 - No secrets in logs: request logging does not log headers/bodies; the AI provider never logs prompts with keys; exceptions are logged without request payloads.
 
 ## Error responses

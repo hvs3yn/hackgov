@@ -93,7 +93,13 @@ public class RiskAlertDeliveryService {
         } catch (RuntimeException e) {
             log.warn("Delivery of assessment {} revision {} failed; will retry", assessmentId, revision, e);
             meters.counter("foresight.inbox.delivery.failures").increment();
-            store.markFailed(assessmentId, revision);
+            try {
+                store.markFailed(assessmentId, revision);
+            } catch (RuntimeException markError) {
+                // The claim lease expires and the sweep retries; don't abort the caller's remaining deliveries.
+                log.warn("Could not mark delivery of assessment {} revision {} as failed: {}", assessmentId,
+                        revision, markError.getClass().getSimpleName());
+            }
         }
     }
 

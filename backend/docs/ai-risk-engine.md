@@ -114,7 +114,7 @@ sequenceDiagram
 
 Configuration: `APP_AI_PROVIDER=none|anthropic` (default `none`), `ANTHROPIC_API_KEY`, `APP_AI_MODEL` (default `claude-opus-5-5`), `APP_AI_EFFORT` (default `medium`), `APP_AI_TIMEOUT` (default 30 s), `APP_AI_MAX_RETRIES` (default 2; SDK retries 408/409/429/5xx). Refusals fall back to the deterministic generator; server-side model fallbacks are not enabled because the deterministic path already guarantees an explanation.
 
-Every generation is logged to MongoDB (`ai_generations`, see `database-design.md`) with its outcome and fallback reason (`provider_disabled`, `rate_limited`, `api_error`, `io_error`, `refusal`, `truncated`, `invalid_output`, `unexpected`). Refusals (`stop_reason = refusal`), rate limits, timeouts, invalid output → fallback and a Micrometer counter `foresight.ai.fallbacks{reason}`. The API key is never logged.
+Every generation is logged to PostgreSQL (`ai_generations`, see `database-design.md`) with its outcome and fallback reason (`provider_disabled`, `rate_limited`, `api_error`, `io_error`, `refusal`, `truncated`, `invalid_output`, `unexpected`). Refusals (`stop_reason = refusal`), rate limits, timeouts, invalid output → fallback and a Micrometer counter `foresight.ai.fallbacks{reason}`. The API key is never logged.
 
 AI output is untrusted: it is only stored as text, never interpreted as commands, never used for authorization or queries.
 

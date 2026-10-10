@@ -154,7 +154,7 @@ Validation: `fullName` 1–120; `email` valid, ≤ 254; `password` 8–128 with 
 | `GET /risks/{id}/history` | project access | paged lifecycle events |
 | `POST /projects/{pid}/risk-analysis` | LEAD, CONTRIBUTOR | synchronous deterministic analysis → `200 AnalysisResultResponse`; `429 ANALYSIS_COOLDOWN` if run < cooldown ago (default 10 s); `409 PROJECT_READ_ONLY` when not ACTIVE |
 | `GET /projects/{pid}/risk-summary` | project access | |
-| `GET /risks/{id}/ai-generations` | project access | paged log (MongoDB) of how explanations were produced: `revision`, `configuredProvider`, `model`, `source`, `outcome` (`PROVIDER`/`FALLBACK`), `fallbackReason`, `errorMessage`, `latencyMs`, `recommendedActions`, `createdAt`; sort `createdAt` (default desc) |
+| `GET /risks/{id}/ai-generations` | project access | paged log of how explanations were produced: `revision`, `configuredProvider`, `model`, `source`, `outcome` (`PROVIDER`/`FALLBACK`), `fallbackReason`, `errorMessage`, `latencyMs`, `recommendedActions`, `createdAt`; sort `createdAt` (default desc) |
 
 ```json
 // RiskResponse
@@ -229,4 +229,4 @@ All endpoints are scoped to the caller (`recipient = me`); other users' items re
 
 ## Operations
 
-- `GET /actuator/health` – public (includes PostgreSQL and MongoDB); `GET /actuator/info` – public.
+- `GET /actuator/health` – public (includes PostgreSQL); `GET /actuator/info` – public.

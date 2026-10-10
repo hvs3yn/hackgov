@@ -45,7 +45,7 @@ Effective project role = `LEAD` if workspace `OWNER`/`ADMIN`, otherwise the proj
 | ID | Requirement |
 |---|---|
 | NFR-1 Security | BCrypt passwords, stateless JWT access tokens (15 min), rotating refresh tokens stored hashed, resource-level authorization on every endpoint, explicit CORS, no secrets in source. |
-| NFR-2a Storage | PostgreSQL holds all business data; MongoDB holds only the AI generation log (telemetry, 90-day TTL). |
+| NFR-2a Storage | PostgreSQL holds all business data; including the AI generation log (telemetry, purged after 90 days). |
 | NFR-2 Integrity | PostgreSQL is the authority for uniqueness and referential integrity (FKs, unique and check constraints, composite FKs keeping project data inside its workspace). Flyway owns the schema; Hibernate only validates it. |
 | NFR-3 Concurrency | Optimistic locking for task/project edits (client sends `version`), per-project write serialization for dependency/graph changes and analysis reconciliation, DB-unique dedupe for assessments and inbox items. |
 | NFR-4 Reliability | Analysis is idempotent; AI calls never run inside a DB transaction; failed deliveries are retried by a sweeper; no lost alerts on crash (DB-backed delivery state). |
@@ -53,7 +53,7 @@ Effective project role = `LEAD` if workspace `OWNER`/`ADMIN`, otherwise the proj
 | NFR-6 Operability | Actuator health/info, request correlation IDs, structured logging, Docker Compose for DB + app, OpenAPI docs at `/swagger-ui.html`. |
 | NFR-7 Performance | All collection endpoints paginated (max page size 100). Risk analysis loads one project at a time with bounded queries. Target scale: hundreds of tasks per project. |
 | NFR-8 Testability | Risk engine is pure Java (no Spring/JPA), driven by a `Clock`; AI provider mocked in tests; integration tests on real PostgreSQL via Testcontainers. |
-| NFR-9 Portability | Runs locally without any AI key; one `docker compose up` brings up PostgreSQL, MongoDB and the backend. |
+| NFR-9 Portability | Runs locally without any AI key; one `docker compose up` brings up the backend (plus an optional local PostgreSQL). |
 
 ## 4. Main user journeys
 
